@@ -1,0 +1,41 @@
+{
+    "name": "mcp-server",
+    "version": "1.0.0",
+    "description": "A sample Node.js MCP Server template that you can use to create your own MCP servers.",
+    "main": "dist/server.js",
+    "type": "module",
+    "scripts": {
+        "test": "npm run lint",
+        "lint": "eslint .",
+        "build": "tsc",
+        "dev": "fastmcp dev src/server.ts",
+        "start": "node .",
+        "watch": "tsc --watch"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/iamtraction/mcp-server.git"
+    },
+    "keywords": [
+        "mcp",
+        "server",
+        "template",
+        "boilerplate"
+    ],
+    "author": "iamtraction",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/iamtraction/mcp-server/issues"
+    },
+    "homepage": "https://github.com/iamtraction/mcp-server#readme",
+    "devDependencies": {
+        "@eslint/js": "^9.27.0",
+        "@types/node": "^22.15.28",
+        "eslint": "^9.27.0",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.33.0"
+    },
+    "dependencies": {
+        "fastmcp": "^2.1.4"
+    }
+}
