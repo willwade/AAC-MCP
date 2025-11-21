@@ -2,6 +2,9 @@ import { Tool } from "fastmcp";
 import { z } from "zod";
 
 import { AAC_PAGESETS, findPageset, findPagesetsBySystem } from "../data/aacPagesets.js";
+import { findSystemProfile } from "../data/aacSystems.js";
+import { buildCustomPages } from "./shared/customPages.js";
+import { clampGridToSystem } from "./shared/systemSupport.js";
 
 const parameters = z.object({
     sourceSystem: z.string().describe("Source AAC system (e.g., Grid for iPad, TouchChat, Proloquo2Go)").optional(),
@@ -42,63 +45,6 @@ const parameters = z.object({
         .optional(),
 });
 
-const buildCustomPages = (args: z.infer<typeof parameters>, targetGrid: { rows: number; columns: number }) => {
-    const customPages = [] as Array<Record<string, unknown>>;
-
-    if (args.includeAlphabet !== false) {
-        customPages.push({
-            name: "Alphabet & Spelling",
-            grid: targetGrid,
-            symbolSet: args.symbolSet ?? "Text-only",
-            layout: "Alphabet row plus core row (A-M / N-Z split) with space, delete, and clear",
-            notes: [
-                "Place space and delete in consistent bottom-right positions to preserve motor planning.",
-                "If word prediction is available, reserve top row for suggestions and maintain consistent height.",
-            ],
-        });
-    }
-
-    customPages.push({
-        name: "Core Words",
-        grid: targetGrid,
-        symbolSet: args.symbolSet ?? "PCS or SymbolStix",
-        layout: "High-frequency verbs, pronouns, helpers, descriptors; keep navigation bottom-left/bottom-right.",
-        notes: [
-            "Mirror source core locations where possible to ease transition between systems.",
-            "Color code by part of speech if the target system supports it (Fitzgerald or Modified Fitzgerald).",
-        ],
-    });
-
-    if (args.includeQuickPhrases !== false) {
-        customPages.push({
-            name: "Quick Phrases & Navigation",
-            grid: { rows: Math.max(3, targetGrid.rows - 1), columns: targetGrid.columns },
-            symbolSet: args.symbolSet ?? "Text-only",
-            layout: "Yes/No, stop/wait/help, greetings, and navigation buttons (home/back/search).",
-            notes: [
-                "Pin navigation buttons to consistent corners across all custom pages.",
-                "Group regulation/support phrases (stop, wait, help) in a single row for quick access.",
-            ],
-        });
-    }
-
-    if (args.customVocabulary && args.customVocabulary.length > 0) {
-        customPages.push({
-            name: "Custom Fringe/Topics",
-            grid: targetGrid,
-            symbolSet: args.symbolSet ?? "PCS or SymbolStix",
-            layout: "Auto-generated topic folders seeded from provided vocabulary.",
-            seededVocabulary: args.customVocabulary,
-            notes: [
-                "Cluster nouns and places together; verbs/adjectives can be linked from the core page to reduce duplication.",
-                "Add photo placeholders for people/places if the target system supports image import.",
-            ],
-        });
-    }
-
-    return customPages;
-};
-
 const tool: Tool<undefined, typeof parameters> = {
     name: "aac_pageset_converter",
     description:
@@ -119,10 +65,12 @@ const tool: Tool<undefined, typeof parameters> = {
                 )) || targetCandidates[0];
 
         const baseGrid = targetInfo?.defaultGrid ?? sourceInfo?.defaultGrid ?? { rows: 6, columns: 10 };
-        const targetGrid = {
+        const requestedGrid = {
             rows: args.targetRows ?? baseGrid.rows,
             columns: args.targetColumns ?? baseGrid.columns,
         };
+
+        const { grid: targetGrid, compatibilityNotes } = clampGridToSystem(requestedGrid, args.targetSystem);
 
         const steps: string[] = [];
 
@@ -140,8 +88,12 @@ const tool: Tool<undefined, typeof parameters> = {
             steps.push("Start with core + navigation placement, then layer fringe/topics and morphology popups.");
         }
 
+        const targetProfile = findSystemProfile(args.targetSystem);
         if (targetInfo) {
             steps.push(...targetInfo.conversionNotes.map((note) => `${targetInfo.pageset}: ${note}`));
+        }
+        if (targetProfile) {
+            steps.push(...targetProfile.conversionTips.map((tip) => `${targetProfile.system}: ${tip}`));
         }
 
         if (args.symbolSet) {
@@ -180,7 +132,22 @@ const tool: Tool<undefined, typeof parameters> = {
             target: targetSection,
             targetGrid,
             conversionSteps: steps,
-            customPages: buildCustomPages(args, targetGrid),
+            customPages: buildCustomPages({
+                targetGrid,
+                symbolSet: args.symbolSet,
+                includeAlphabet: args.includeAlphabet,
+                includeQuickPhrases: args.includeQuickPhrases,
+                customVocabulary: args.customVocabulary,
+            }),
+            compatibility: {
+                targetSystem: args.targetSystem,
+                symbolSupport: targetProfile?.supportedSymbols ?? [],
+                symbolRequest: args.symbolSet,
+                gridAdjustments: compatibilityNotes,
+                importFormats: targetProfile?.importFormats ?? [],
+                exportFormats: targetProfile?.exportFormats ?? [],
+                notableFeatures: targetProfile?.notableFeatures ?? [],
+            },
             catalogPreview: AAC_PAGESETS.filter(
                 (entry) =>
                     entry.system.toLowerCase() === args.targetSystem.toLowerCase() ||
