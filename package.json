@@ -36,6 +36,7 @@
         "typescript-eslint": "^8.33.0"
     },
     "dependencies": {
-        "fastmcp": "^2.1.4"
+        "fastmcp": "^2.1.4",
+        "worldalphabets": "^0.0.31"
     }
 }
